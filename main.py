@@ -1,3 +1,6 @@
+"""
+Никнейм бота - https://t.me/yandexgroceryshop_bot
+"""
 import datetime
 import logging
 from telegram.ext import Application, MessageHandler, filters, CommandHandler
@@ -13,10 +16,10 @@ markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 markup_shop = ReplyKeyboardMarkup(shop_keyboard, one_time_keyboard=False)
 markup_profile = ReplyKeyboardMarkup(profile_keyboard, one_time_keyboard=False)
 markup_close = ReplyKeyboardMarkup(close_keyboard, one_time_keyboard=False)
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
-
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +66,6 @@ async def support(update, context):
     await update.message.reply_text(
         """
         ➖ Помощь ➖
-
 По всем вопросам пишите сюда:
 @igstsr @theyoungcynic"""
     )
@@ -100,7 +102,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-"""
-Никнейм бота - https://t.me/yandexgroceryshop_bot 
-"""
