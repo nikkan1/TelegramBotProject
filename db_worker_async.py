@@ -34,7 +34,7 @@ class Worker:
         async with self.engine.begin() as conn:
             await conn.run_sync(self.meta.create_all)
 
-        with open('data.json', encoding='utf-8') as jsfile:
+        with open('ext_data/data.json', encoding='utf-8') as jsfile:
             data = json.load(jsfile)
         async with self.async_session() as db_sess:
             for tp in data:
