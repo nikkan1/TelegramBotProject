@@ -11,7 +11,7 @@ from data.coupones import Coupone
 from data.db_session import create_session, global_init
 
 
-class Worker:
+class Worker:  # TODO: добавить про достать купоны!!!! покупателям такое надо!!!
     """
     Отвечает за взаимодействие с БД.
     """
@@ -20,9 +20,9 @@ class Worker:
         global_init(db_file)
         self.session = create_session()
 
-    def temp_load(self):
+    def data_load_from_json(self, json_file):
         """Единоразовая подгрузка базы данных из файла при ее инициализации. Может еще пригодиться"""
-        with open('data.json', encoding='utf-8') as jsfile:
+        with open(json_file, encoding='utf-8') as jsfile:
             data = json.load(jsfile)
 
         for tp in data['types']:
@@ -174,3 +174,7 @@ class Worker:
         self.session.commit()
         print(purchase, '-' * 10, 'just closed')
         del self.purchases[user_id]
+
+
+worker = Worker('db/pre_release_shop.db')
+worker.data_load_from_json('ext_data/shop_data.json')
