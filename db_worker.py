@@ -174,7 +174,3 @@ class Worker:  # TODO: добавить про достать купоны!!!! �
         self.session.commit()
         print(purchase, '-' * 10, 'just closed')
         del self.purchases[user_id]
-
-
-worker = Worker('db/pre_release_shop.db')
-worker.data_load_from_json('ext_data/shop_data.json')
