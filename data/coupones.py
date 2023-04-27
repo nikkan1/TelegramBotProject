@@ -10,4 +10,7 @@ class Coupone(SqlAlchemyBase):
     discount = sqlalchemy.Column(sqlalchemy.Integer)
 
     def get_types(self):
+        """Вернуть айдишники типов товаров в виде списка натуральных чисел."""
+        if not self.types:
+            return
         return list(map(int, str(self.types).split(', ')))
