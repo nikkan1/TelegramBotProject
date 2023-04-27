@@ -1,4 +1,7 @@
-import json
+"""
+Реализует класс-менеджер, обращающийся с БД.
+"""
+import json  # нужен для изначальной загрузки данных в БД при инициализации
 
 import datetime
 from data.types import Types
@@ -22,18 +25,33 @@ class Worker:
         with open('data.json', encoding='utf-8') as jsfile:
             data = json.load(jsfile)
 
-        for tp in data:
+        for tp in data['types']:
             typp = Types(title=tp)
             self.session.add(typp)
             self.session.commit()
-            for p in data[tp]:
+            for p in data['types'][tp]:
                 prod = Product(title=p[0], price=p[1], type=typp.id)
                 self.session.add(prod)
+
+        for coup in data['coupons']:
+            coupon = Coupone()
+            coupon.types = coup[0]
+            coupon.discount = coup[1]
+            self.session.add(coupon)
+
         self.session.commit()
 
     def get_types(self):
         """Получаем названия типов продуктов из таблицы."""
         return list(map(lambda x: x.title, self.session.query(Types).all()))
+
+    def get_products(self, tp='<no-type>'):
+        """Получить список названий продуктов переданного типа."""
+        if tp == '<no-type>':
+            return list(map(lambda x: x.title, self.session.query(Product).all()))
+        type_id = self.get_type_by_title(tp)
+        return list(map(lambda x: x.title,
+                        self.session.query(Product).filter(Product.type == type_id)))
 
     def get_type_by_title(self, title: str):
         """Получить объект Types по его названию."""
@@ -43,20 +61,14 @@ class Worker:
         """Получить объект Product по его названию."""
         return self.session.query(Product).filter(Product.title == title).first()
 
-    def get_products(self, tp: str):
-        """Получить список названий продуктов переданного типа."""
-        type_id = self.get_type_by_title(tp)
-        return list(map(lambda x: x.title,
-                        self.session.query(Product).filter(Product.type == type_id)))
-
     def purchase_history(self, user_id=0):
         """
         Загрузить историю покупок и вернуть в удобочитаемом виде.
         Необязательный параметр user_id - если мы хотим получить историю только одного пользователя.
         """
         if not user_id:
-            return list(map(str, self.session.query(Purchase).filter(Purchase.closed == 1)))
-        return list(map(str, self.session.query(Purchase).filter(Purchase.closed == 1,
+            return list(map(str, self.session.query(Purchase).filter(Purchase.closed.isnot(None))))
+        return list(map(str, self.session.query(Purchase).filter(Purchase.closed.isnot(None),
                                                                  Purchase.user_id == user_id)))
 
     def open_purchase(self, user_id: int):
@@ -80,7 +92,11 @@ class Worker:
         """Добавить продукт в корзину. Сначала получить корзину методом open_purchase, чтобы не
         возникло накладок (если корзина не закрыта и в БД или не существует вовсе)."""
         purchase = self.open_purchase(user_id)
-        prod_id = str(self.get_product_by_title(product).id)
+        prod = self.get_product_by_title(product)
+        if not prod:
+            return
+        print(f'added {product} with price {prod.price}')
+        prod_id = str(prod.id)
         if not purchase.products:
             purchase.products = prod_id
         else:
@@ -95,6 +111,7 @@ class Worker:
         need = self.get_product_by_title(product)
         if not prods or need.id not in prods:
             return False
+        print(f'removed {product} with price {need.price}')
         prods.remove(need.id)
         purchase.products = ', '.join(list(map(str, prods)))
         self.session.commit()
@@ -135,8 +152,14 @@ class Worker:
             summ = 0
             for prod in products:
                 if prod.type in type_ids:
-                    summ += round(prod.price * (discounts[max(filter(
-                        lambda x: prod.type in discounts[x], discounts))] / 100))
+                    discount = max(filter(lambda x: prod.type in discounts[x], discounts),
+                                   key=lambda x: x.discount).discount
+                    price = round(prod.price * (100 - discount) / 100)
+                    print(f'к товару {prod.title} применена скидка {discount}:\n'
+                          f'{prod.price} ----------- {price}')
+                    summ += price
+                else:
+                    summ += prod.price
             purchase.total = summ
         else:
             purchase.total = purchase.cost
@@ -153,16 +176,20 @@ class Worker:
         del self.purchases[user_id]
 
 
-worker = Worker('db/test_shop.db')
+worker = Worker('db/test_shop_2.db')
 print('Worker started')
-shopping_list = ['белый шоколад', 'темный шоколад', 'яблоки', 'классический']
-user = 42
+print('\n============================== PURCHASE HISTORY')
+print(*worker.purchase_history(), sep='\n')
+print('==============================\n')
+shopping_list = ['белый шоколад', 'темный шоколад', 'яблоки', 'классический', ]
+user = 3
+worker.add_coupon(user, '1')
 for shop_item in shopping_list:
     worker.add_product(user, shop_item)
-    print(f'added {shop_item} to purchase')
-print('Total cost:   ', worker.count_cost(user))
-to_delete = ['белый шоколад', 'легкий']
-for dl in to_delete:
-    worker.delete_product(user, dl)
+worker.add_coupon(user, '2')
+shopping_list = ['молоко', 'творог зернистый', 'куриные бедра']
+for shop_item in shopping_list:
+    worker.add_product(user, shop_item)
+worker.add_coupon(user, '3')
 print('Total cost:   ', worker.count_cost(user))
 worker.close_purchase(user)
