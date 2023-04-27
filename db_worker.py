@@ -174,22 +174,3 @@ class Worker:
         self.session.commit()
         print(purchase, '-' * 10, 'just closed')
         del self.purchases[user_id]
-
-
-worker = Worker('db/test_shop_2.db')
-print('Worker started')
-print('\n============================== PURCHASE HISTORY')
-print(*worker.purchase_history(), sep='\n')
-print('==============================\n')
-shopping_list = ['белый шоколад', 'темный шоколад', 'яблоки', 'классический', ]
-user = 3
-worker.add_coupon(user, '1')
-for shop_item in shopping_list:
-    worker.add_product(user, shop_item)
-worker.add_coupon(user, '2')
-shopping_list = ['молоко', 'творог зернистый', 'куриные бедра']
-for shop_item in shopping_list:
-    worker.add_product(user, shop_item)
-worker.add_coupon(user, '3')
-print('Total cost:   ', worker.count_cost(user))
-worker.close_purchase(user)
