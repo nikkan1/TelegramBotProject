@@ -130,7 +130,7 @@ async def get_check(update, context):
 
 
 async def purchase_history(update, context):
-    hist = '\n'.join(worker.purchase_history())
+    hist = '\n'.join(worker.purchase_history(int(update.effective_user.id)))
     await update.message.reply_text('История покупок:\n' + hist)
 
 

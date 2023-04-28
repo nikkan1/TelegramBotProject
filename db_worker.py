@@ -115,7 +115,7 @@ class Worker:
                                                                  Product.id.in_(ids)))))
         ids = purchase.get_coupons()
         if ids:
-            res += '\nПрименены купоны: ' + ', '.join(list(map(lambda x: x.title,
+            res += '\nПрименены купоны: ' + ', '.join(list(map(lambda x: str(x.id),
                                                                self.session.query(Coupone).filter(
                                                                  Coupone.id.in_(ids)))))
         res += f'\nОбщая стоимость с учетом скидок: {self.count_cost(user_id)}'
