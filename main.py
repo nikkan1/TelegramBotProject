@@ -3,7 +3,7 @@
 """
 import logging
 import markups_for_bot as mb
-from telegram.ext import Application, MessageHandler, filters, CommandHandler
+from telegram.ext import Application, CommandHandler
 from telegram import ReplyKeyboardMarkup
 from config import BOT_TOKEN
 from db_worker import Worker
