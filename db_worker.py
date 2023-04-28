@@ -46,7 +46,7 @@ class Worker:
         coupons = self.session.query(Coupone).all()
         result = []
         for coup in coupons:
-            result.append(f'Скидка {coup.discount}% на товары категорий: '
+            result.append(f'Купон {coup.id}\nСкидка {coup.discount}% на товары категорий: '
                           f'{", ".join(self.get_types(*coup.get_types()))}')
         return result
 
@@ -61,9 +61,13 @@ class Worker:
         """Получить список названий продуктов переданного типа. Если тип не указан, получить все."""
         if tp == '<no-type>':
             return list(map(lambda x: x.title, self.session.query(Product).all()))
-        type_id = self.get_type_by_title(tp)
+        type_id = self.get_type_by_title(tp).id
         return list(map(lambda x: x.title,
-                        self.session.query(Product).filter(Product.type == type_id)))
+                        self.session.query(Product).filter(Product.type == type_id).all()))
+
+    def get_prod_by_id(self, prod_id: int):
+        """Получить продукт по его id."""
+        return self.session.query(Product).filter(Product.id == prod_id)
 
     def get_type_by_title(self, title: str):
         """Получить объект Types по его названию."""
