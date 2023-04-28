@@ -107,8 +107,12 @@ async def go_back(update, context):
 async def add_product(update, context):
     global type_title
     data = update.message.text.split('_')
-    worker.add_product(int(update.effective_user.id), mb.prod_names[int(data[1])][int(data[3]) - 1])
-    await update.message.reply_text('Товар добавлен в корзину.')
+    res = worker.add_product(int(update.effective_user.id),
+                             mb.prod_names[int(data[1])][int(data[3]) - 1])
+    if res:
+        await update.message.reply_text('Товар добавлен в корзину.')
+    else:
+        await update.message.reply_text('Такого товара нет.')
 
 
 async def add_coupon(update, context):

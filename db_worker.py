@@ -127,7 +127,7 @@ class Worker:
         purchase = self.open_purchase(user_id)
         prod = self.get_product_by_title(product)
         if not prod:
-            return
+            return False
         print(f'added {product} with price {prod.price}')
         prod_id = str(prod.id)
         if not purchase.products:
@@ -135,6 +135,7 @@ class Worker:
         else:
             purchase.products += ', ' + prod_id
         self.session.commit()
+        return True
 
     def delete_product(self, user_id: int, product: str):
         """Удалить продукт из корзины. Также в первую очередь запускает open_purchase.
