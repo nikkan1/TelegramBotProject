@@ -11,7 +11,7 @@ from data.coupones import Coupone
 from data.db_session import create_session, global_init
 
 
-class Worker:  # TODO: добавить про достать купоны!!!! покупателям такое надо!!!
+class Worker:
     """
     Отвечает за взаимодействие с БД.
     """
@@ -41,12 +41,24 @@ class Worker:  # TODO: добавить про достать купоны!!!! �
 
         self.session.commit()
 
-    def get_types(self):
-        """Получаем названия типов продуктов из таблицы."""
+    def get_coupons(self):
+        """Вернуть список купонов в удобочитаемом виде."""
+        coupons = self.session.query(Coupone).all()
+        result = []
+        for coup in coupons:
+            result.append(f'Скидка {coup.discount}% на товары категорий: '
+                          f'{", ".join(self.get_types(*coup.get_types()))}')
+        return result
+
+    def get_types(self, *ids: int):
+        """Получаем названия типов продуктов из таблицы. Также может быть передан список id типов,
+        названия которых нужно получить."""
+        if ids:
+            return list(map(lambda x: x.title, self.session.query(Types).filter(Types.id.in_(ids))))
         return list(map(lambda x: x.title, self.session.query(Types).all()))
 
     def get_products(self, tp='<no-type>'):
-        """Получить список названий продуктов переданного типа."""
+        """Получить список названий продуктов переданного типа. Если тип не указан, получить все."""
         if tp == '<no-type>':
             return list(map(lambda x: x.title, self.session.query(Product).all()))
         type_id = self.get_type_by_title(tp)
@@ -87,6 +99,23 @@ class Worker:  # TODO: добавить про достать купоны!!!! �
         self.purchases[user_id] = purchase
         self.session.commit()
         return purchase
+
+    def get_purchase(self, user_id: int):
+        """Вернуть строку с описанием корзины пользователя user_id."""
+        purchase = self.open_purchase(user_id)
+        ids = purchase.get_products()
+        res = f'Покупка пользователя {user_id}.\n'
+        if ids:
+            res += '\nТовары в корзине: ' + ', '.join(list(map(lambda x: x.title,
+                                                               self.session.query(Product).filter(
+                                                                 Product.id.in_(ids)))))
+        ids = purchase.get_coupons()
+        if ids:
+            res += '\nПрименены купоны: ' + ', '.join(list(map(lambda x: x.title,
+                                                               self.session.query(Coupone).filter(
+                                                                 Coupone.id.in_(ids)))))
+        res += f'\nОбщая стоимость с учетом скидок: {self.count_cost(user_id)}'
+        return res
 
     def add_product(self, user_id: int, product: str):
         """Добавить продукт в корзину. Сначала получить корзину методом open_purchase, чтобы не
