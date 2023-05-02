@@ -57,13 +57,17 @@ class Worker:
             return list(map(lambda x: x.title, self.session.query(Types).filter(Types.id.in_(ids))))
         return list(map(lambda x: x.title, self.session.query(Types).all()))
 
-    def get_products(self, tp='<no-type>'):
+    def get_products(self, tp='<no-type>', only_title=True):
         """Получить список названий продуктов переданного типа. Если тип не указан, получить все."""
         if tp == '<no-type>':
-            return list(map(lambda x: x.title, self.session.query(Product).all()))
+            if only_title:
+                return list(map(lambda x: x.title, self.session.query(Product).all()))
+            return self.session.query(Product).all()
         type_id = self.get_type_by_title(tp).id
-        return list(map(lambda x: x.title,
-                        self.session.query(Product).filter(Product.type == type_id).all()))
+        if only_title:
+            return list(map(lambda x: x.title,
+                            self.session.query(Product).filter(Product.type == type_id).all()))
+        return self.session.query(Product).filter(Product.type == type_id).all()
 
     def get_prod_by_id(self, prod_id: int):
         """Получить продукт по его id."""

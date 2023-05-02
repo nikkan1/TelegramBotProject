@@ -3,8 +3,8 @@
 """
 import logging
 import markups_for_bot as mb
-from telegram.ext import Application, CommandHandler
-from telegram import ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ConversationHandler, CallbackQueryHandler
+from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from config import BOT_TOKEN
 from db_worker import Worker
 
@@ -17,6 +17,15 @@ profile_keyboard = [['/purchase_history', '/activate_coupon'], ['/go_back']]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 markup_shop = ReplyKeyboardMarkup(shop_keyboard, one_time_keyboard=False)
 markup_profile = ReplyKeyboardMarkup(profile_keyboard, one_time_keyboard=False)
+
+
+new_reply_keyboard = [[
+    InlineKeyboardButton('Магазин', callback_data='shop'),
+    InlineKeyboardButton('Профиль', callback_data='profile'),
+    InlineKeyboardButton('Поддержка', callback_data='support')
+]]
+new_reply_markup = InlineKeyboardMarkup(new_reply_keyboard)
+
 
 # будет использоваться для возвращения на прошлую клавиатуру
 markup_stack = [markup]
@@ -31,6 +40,16 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
+
+
+async def new_start(update, context):
+    await update.message.reply_text('Выберите, что вы хотите сделать:', reply_markup=new_reply_markup)
+
+
+async def first_answer(update, context):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(f'Вы выбрали опцию {query.data}')
 
 
 async def start(update, context):
@@ -169,7 +188,8 @@ async def support(update, context):
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     # стартовая клавиатура
-    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", new_start))
+    application.add_handler(CallbackQueryHandler(first_answer))
     application.add_handler(CommandHandler("Shop", shop))
     application.add_handler(CommandHandler("Profile", profile))
     application.add_handler(CommandHandler("Support", support))
