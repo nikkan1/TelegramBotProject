@@ -1,1 +1,2 @@
 BOT_TOKEN = '6277839457:AAG7BAL2YFhg6bPyGqqzgJYKTFlpvGg0SWM'
+DB_FILE = 'db/release_shop.db'
