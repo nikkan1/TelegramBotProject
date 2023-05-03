@@ -6,7 +6,7 @@ class Purchase(SqlAlchemyBase):
     __tablename__ = 'purchases'
 
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    user_id = sqlalchemy.Column(sqlalchemy.Integer)
+    user_id = sqlalchemy.Column(sqlalchemy.String)
     products = sqlalchemy.Column(sqlalchemy.String)
     cost = sqlalchemy.Column(sqlalchemy.Float)  # без скидки
     coupons = sqlalchemy.Column(sqlalchemy.String)

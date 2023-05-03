@@ -2,39 +2,25 @@
 Никнейм бота - https://t.me/yandexgroceryshop_bot
 """
 import logging
-import markups_for_bot as mb
-from telegram.ext import Application, CommandHandler, ConversationHandler, CallbackQueryHandler
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_TOKEN
+import markups_for_bot as mb  # все необходимые клавиатуры
+from copy import deepcopy
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from config import BOT_TOKEN, DB_FILE
 from db_worker import Worker
 
 # подключаем базу данных
-worker = Worker('db/pre_release_shop.db')
+worker = Worker(db_file=DB_FILE)
 
-reply_keyboard = [['/Shop', '/Profile', '/Support']]
-shop_keyboard = [['/prod_types', '/get_check'], ['/pay', '/go_back']]
-profile_keyboard = [['/purchase_history', '/activate_coupon'], ['/go_back']]
-markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
-markup_shop = ReplyKeyboardMarkup(shop_keyboard, one_time_keyboard=False)
-markup_profile = ReplyKeyboardMarkup(profile_keyboard, one_time_keyboard=False)
-
-
-new_reply_keyboard = [[
-    InlineKeyboardButton('Магазин', callback_data='shop'),
-    InlineKeyboardButton('Профиль', callback_data='profile'),
-    InlineKeyboardButton('Поддержка', callback_data='support')
-]]
-new_reply_markup = InlineKeyboardMarkup(new_reply_keyboard)
+# необходимые для дальнейшей работы глобальные переменные и константы
+TYPES = worker.get_types()
+PRODUCTS = worker.get_products()
+COUPONS = worker.get_coupons()
+product = ''
 
 
 # будет использоваться для возвращения на прошлую клавиатуру
-markup_stack = [markup]
-prod_i = 0
-type_title = ''
-type_i = 0
-
-# данные, чтобы не переделывать их каждый раз
-tps = '\n'.join(list(map(lambda x: f'{x + 1} - {mb.types[x]}', range(len(mb.types)))))
+markup_stack = [mb.reply_markup]
+to_add = None
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -43,173 +29,143 @@ logger = logging.getLogger(__name__)
 
 
 async def new_start(update, context):
-    await update.message.reply_text('Выберите, что вы хотите сделать:', reply_markup=new_reply_markup)
+    """Запуск приложения-магазина."""
+    await update.message.reply_text("Добро пожаловать в наш магазин! Что вы хотите сделать?",
+                                    reply_markup=mb.reply_markup)
 
 
-async def first_answer(update, context):
+async def manager_callback(update, context):
+    """Управлять всеми событиями клавиатур."""
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text(f'Вы выбрали опцию {query.data}')
+    if query.data == 'shop':  # попасть в магазин
+        await shop(query)
+    if query.data == 'types':  # получить категории товаров
+        await get_all_types(query)
+    if query.data == 'profile':  # профиль
+        await profile(query)
+    if query.data == 'back':  # кнопка "вернуться"
+        await go_back(query)
+    if query.data in TYPES:  # если выбран тип, то вернуть продукты по нему
+        await types_manage(query)
+    if query.data == 'add_product':  # добавить продукт в корзину
+        await add_product(update, query)
+    if query.data == 'purchase_history':  # получить историю покупок
+        await purchase_history(update)
+    if query.data.isdigit():  # если отправлен номер купона
+        await add_coupon(update, query)
+    if query.data == 'coupons':  # чтобы получить список купонов
+        await activate_coupon(query)
+    if query.data == 'support':  # поддержка
+        await support(update)
+    if query.data == 'check':  # получить чек
+        await get_check(update)
+    if query.data == 'pay':  # оплатить покупку
+        await pay(update)
+    if query.data in PRODUCTS:  # дать возможность купить продукт
+        await product_manage(query)
 
 
-async def start(update, context):
-    markup_stack.append(markup)
-    await update.message.reply_text(
-        """Добро пожаловать в наш магазин! Что вы хотите сделать?
-/Shop - открыть магазин
-/Profile - открыть профиль
-/Support - справочная информация""",
-        reply_markup=markup
-    )
+async def get_all_types(query):
+    """Получить все категории продуктов."""
+    markup_stack.append(mb.shop_markup)
+    await query.edit_message_text('Категории продуктов:', reply_markup=mb.types_markup)
 
 
-async def shop(update, context):
-    await update.message.reply_text(
-        "Магазин",
-        reply_markup=markup_shop
-    )
+async def types_manage(query):
+    """Отправить клавиатуру со списком продуктов определенной категории."""
+    global to_add
+    markup_stack.append(mb.shop_markup)
+    to_add = deepcopy(mb.prod_markup[query.data])
+    to_print = f'Продукты категории "{query.data}":'
+    await query.edit_message_text(to_print, reply_markup=mb.prod_markup[query.data])
 
 
-async def get_types(update, context):
-    markup_stack.append(markup_shop)
-    await update.message.reply_text(f'Выберите тип товара: {tps}',
-                                    reply_markup=mb.types_markups[type_i])
+async def product_manage(query):
+    """Вернуть клавиатуру, где дается выбор, покупать товар или нет."""
+    global to_add, product
+    markup_stack.append(to_add)
+    product = query.data
+    await query.edit_message_text(f'{query.data}', reply_markup=mb.small_markup)
 
 
-async def prev_type(update, context):
-    global type_i
-    type_i = (type_i - 1) % len(mb.types_markups)
-    await update.message.reply_text('', reply_markup=mb.types_markups[type_i])
+async def add_product(update, query):
+    """Добавить продукт в корзину пользователя."""
+    global product
+    user = update.effective_message.chat.username
+    worker.add_product(user, product)
+    await query.edit_message_text(f'{product}\nДобавлен в корзину!', reply_markup=mb.small_markup)
 
 
-async def next_type(update, context):
-    global type_i
-    type_i = (type_i + 1) % len(mb.types_markups)
-    await update.message.reply_text('', reply_markup=mb.types_markups[type_i])
+async def shop(query):
+    """Реакция на выбор кнопки магазина."""
+    markup_stack.append(mb.reply_markup)
+    await query.edit_message_text("Магазин", reply_markup=mb.shop_markup)
 
 
-async def next_product(update, context):
-    global type_i, prod_i
-    prod_i = (prod_i + 1) % len(mb.prod_markups[type_title])
-    await update.message.reply_text('', reply_markup=mb.prod_markups[type_title][prod_i])
+async def profile(query):
+    """Профиль пользователя."""
+    markup_stack.append(mb.reply_markup)
+    await query.edit_message_text('Ваш профиль:', reply_markup=mb.profile_markup)
 
 
-async def prev_product(update, context):
-    global type_i, prod_i
-    prod_i = (prod_i - 1) % len(mb.prod_markups[type_title])
-    await update.message.reply_text('', reply_markup=mb.prod_markups[type_title][prod_i])
-
-
-async def products(update, context):
-    global type_title, prod_i, type_i
-    markup_stack.append(mb.types_markups[type_i])
-    tp_i = int(update.message.text.lstrip('/type_'))
-    type_title = mb.types[int(update.message.text.lstrip('/type_')) - 1]
-    need = mb.prod_markups[str(type_title)][prod_i]
-    prods = '\n'.join(list(map(lambda x: f'{x + 1} - {mb.prod_names[tp_i][x]}',
-                               range(len(mb.prod_names[tp_i])))))
-    await update.message.reply_text(
-        f"Товары типа {type_title}:\n{prods}", reply_markup=need
-    )
-
-
-async def go_back(update, context):
+async def go_back(query):
     """Вернуться на предыдущую клавиатуру."""
-    global prod_i, type_i
-    if markup_stack[-1] in mb.types_markups:
-        prod_i = 0
-    else:
-        type_i = 0
-    await update.message.reply_text('Возвращение назад', reply_markup=markup_stack.pop(-1))
+    await query.edit_message_text('Возвращение назад', reply_markup=markup_stack.pop())
 
 
-async def add_product(update, context):
-    global type_title
-    data = update.message.text.split('_')
-    res = worker.add_product(int(update.effective_user.id),
-                             mb.prod_names[int(data[1])][int(data[3]) - 1])
-    if res:
-        await update.message.reply_text('Товар добавлен в корзину.')
-    else:
-        await update.message.reply_text('Такого товара нет.')
+async def add_coupon(update, query):
+    """Добавить к покупке купон."""
+    worker.add_coupon(update.effective_message.chat.username, query.data)
+    await update.effective_message.reply_text(f'Купон {query.data} добавлен')
+    await update.effective_message.reply_text(f'Выберите купон:', reply_markup=mb.coup_markup)
 
 
-async def add_coupon(update, context):
-    coup_id = update.message.text.lstrip('/coup_')
-    worker.add_coupon(update.effective_user.id, coup_id)
-    await update.message.reply_text(f'Купон {coup_id} добавлен')
-
-
-async def pay(update, context):
+async def pay(update):
     """Купить - напечатать информацию о корзине и закрыть покупку."""
-    user_id = int(update.effective_user.id)
-    await update.message.reply_text(worker.get_purchase(user_id))
+    user_id = update.effective_message.chat.username
+    await update.effective_message.reply_text(worker.get_purchase(user_id))
     worker.close_purchase(user_id)
+    await update.effective_message.reply_text('Покупка оплачена.')
+    await update.effective_message.reply_text('Магазин', reply_markup=mb.reply_markup)
 
 
-async def get_check(update, context):
+async def get_check(update):
     """Получить всю информацию о корзине на данный момент."""
-    await update.message.reply_text(worker.get_purchase(int(update.effective_user.id)))
+    await update.effective_message.reply_text(worker.get_purchase(
+        update.effective_message.chat.username))
+    await update.effective_message.reply_text('''Магазин''', reply_markup=mb.shop_markup)
 
 
-async def purchase_history(update, context):
-    hist = '\n'.join(worker.purchase_history(int(update.effective_user.id)))
-    await update.message.reply_text('История покупок:\n' + hist)
+async def purchase_history(update):
+    """Получить историю покупок пользователя."""
+    hist = '\n'.join(worker.purchase_history(update.effective_message.chat.username))
+    await update.effective_message.reply_text('История покупок:\n' + hist)
+    await update.effective_message.reply_text('Ваш профиль:', reply_markup=mb.profile_markup)
 
 
-async def activate_coupon(update, context):
-    global markup_stack
-    markup_stack.append(markup_profile)
-    await update.message.reply_text(
-        'Выберите купон:\n'
-        '\n'.join(mb.coupons),
-        reply_markup=mb.coup_markup
-    )
+async def activate_coupon(query):
+    """Выбрать купон из списка."""
+    markup_stack.append(mb.profile_markup)
+    await query.edit_message_text('Выберите купон:', reply_markup=mb.coup_markup)
 
 
-async def profile(update, context):
-    """Вернуть информацию о пользователе (его id) и дополнительные возможности."""
-    await update.message.reply_text(
-        f"Профиль пользователя {update.effective_user.id}",
-        reply_markup=markup_profile
-    )
-
-
-async def support(update, context):
+async def support(update):
     """Вернуть справочную информацию."""
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         """
         ➖ Помощь ➖
 По всем вопросам пишите сюда:
 @igstsr @theyoungcynic"""
     )
+    await update.effective_message.reply_text('Что вы хотите сделать?', reply_markup=mb.reply_markup)
 
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
-    # стартовая клавиатура
+
     application.add_handler(CommandHandler("start", new_start))
-    application.add_handler(CallbackQueryHandler(first_answer))
-    application.add_handler(CommandHandler("Shop", shop))
-    application.add_handler(CommandHandler("Profile", profile))
-    application.add_handler(CommandHandler("Support", support))
-    # универсальная кнопка
-    application.add_handler(CommandHandler("go_back", start))
-    # клавиатура профиля
-    application.add_handler(CommandHandler("activate_coupon", activate_coupon))
-    application.add_handler(CommandHandler("purchase_history", purchase_history))
-    # клавиатура магазина
-    application.add_handler(CommandHandler("prod_types", get_types))
-    application.add_handler(CommandHandler('pay', pay))
-
-    for comm in mb.types_comm:
-        application.add_handler(CommandHandler(comm, products))
-
-    for comm in mb.prod_comm:
-        application.add_handler(CommandHandler(comm, add_product))
-
-    for coup in range(len(mb.coupons)):
-        application.add_handler(CommandHandler(f'coup_{coup}', add_coupon))
+    application.add_handler(CallbackQueryHandler(manager_callback))
 
     # поехали
     application.run_polling()

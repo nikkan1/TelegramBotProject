@@ -81,7 +81,7 @@ class Worker:
         """Получить объект Product по его названию."""
         return self.session.query(Product).filter(Product.title == title).first()
 
-    def purchase_history(self, user_id=0):
+    def purchase_history(self, user_id=''):
         """
         Загрузить историю покупок и вернуть в удобочитаемом виде.
         Необязательный параметр user_id - если мы хотим получить историю только одного пользователя.
@@ -91,7 +91,7 @@ class Worker:
         return list(map(str, self.session.query(Purchase).filter(Purchase.closed.isnot(None),
                                                                  Purchase.user_id == user_id)))
 
-    def open_purchase(self, user_id: int):
+    def open_purchase(self, user_id: str):
         """Открыть корзину, начать историю покупок. Все активные покупки хранятся в атрибуте
         класса, а тут происходит их инициализация или загрузка незакрытых из БД."""
         if self.purchases.get(user_id):
@@ -108,7 +108,7 @@ class Worker:
         self.session.commit()
         return purchase
 
-    def get_purchase(self, user_id: int):
+    def get_purchase(self, user_id: str):
         """Вернуть строку с описанием корзины пользователя user_id."""
         purchase = self.open_purchase(user_id)
         ids = purchase.get_products()
@@ -116,16 +116,16 @@ class Worker:
         if ids:
             res += '\nТовары в корзине: ' + ', '.join(list(map(lambda x: x.title,
                                                                self.session.query(Product).filter(
-                                                                 Product.id.in_(ids)))))
+                                                                 Product.id.in_(ids)).all())))
         ids = purchase.get_coupons()
         if ids:
             res += '\nПрименены купоны: ' + ', '.join(list(map(lambda x: str(x.id),
                                                                self.session.query(Coupone).filter(
-                                                                 Coupone.id.in_(ids)))))
+                                                                 Coupone.id.in_(ids)).all())))
         res += f'\nОбщая стоимость с учетом скидок: {self.count_cost(user_id)}'
         return res
 
-    def add_product(self, user_id: int, product: str):
+    def add_product(self, user_id: str, product: str):
         """Добавить продукт в корзину. Сначала получить корзину методом open_purchase, чтобы не
         возникло накладок (если корзина не закрыта и в БД или не существует вовсе)."""
         purchase = self.open_purchase(user_id)
@@ -141,7 +141,7 @@ class Worker:
         self.session.commit()
         return True
 
-    def delete_product(self, user_id: int, product: str):
+    def delete_product(self, user_id: str, product: str):
         """Удалить продукт из корзины. Также в первую очередь запускает open_purchase.
         :return True если предмет успешно удален иначе False (корзина пуста или его там нет)"""
         purchase = self.open_purchase(user_id)
@@ -155,7 +155,7 @@ class Worker:
         self.session.commit()
         return True
 
-    def add_coupon(self, user_id: int, coupon_id: str):
+    def add_coupon(self, user_id: str, coupon_id: str):
         """Добавляем купон. Предполагается, что купоны пользователь вводит по их id, тогда запоминаем
         его в активной покупке."""
         purchase = self.open_purchase(user_id)
@@ -165,7 +165,7 @@ class Worker:
             purchase.coupons += ', ' + coupon_id
         self.session.commit()
 
-    def count_cost(self, user_id: int):
+    def count_cost(self, user_id: str):
         """Высчитать цену с учетом скидок по купонам. Выставление счета (вернуть число)."""
         purchase = self.open_purchase(user_id)
         # получить список продуктов и посчитать их цену без купонов
@@ -204,7 +204,7 @@ class Worker:
         self.session.commit()
         return purchase.total
 
-    def close_purchase(self, user_id: int):
+    def close_purchase(self, user_id: str):
         """Закрыть покупку - оплата прошла, закрываем корзину и записываем в БД в качестве истории
         покупок."""
         purchase = self.open_purchase(user_id)
