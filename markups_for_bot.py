@@ -3,7 +3,7 @@
 """
 from config import DB_FILE
 from db_worker import Worker
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 def new_keyboard_making():
@@ -53,6 +53,7 @@ profile_keyboard = [[InlineKeyboardButton('История покупок', callb
                     [InlineKeyboardButton('Вернуться', callback_data='back')]]
 # клавиатура внутри магазина - купить товар или вернуться к выбору
 small_keyboard = [[InlineKeyboardButton('В корзину', callback_data='add_product')],
+                  [InlineKeyboardButton('Удалить из корзины', callback_data='delete_product')],
                   [InlineKeyboardButton('Вернуться', callback_data='back')]]
 
 # создание целых клавиатур из кнопок
