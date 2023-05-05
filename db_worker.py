@@ -114,13 +114,13 @@ class Worker:
         ids = purchase.get_products()
         res = f'Покупка пользователя {user_id}.\n'
         if ids:
-            res += '\nТовары в корзине: ' + ', '.join(list(map(lambda x: x.title,
-                                                               self.session.query(Product).filter(
-                                                                 Product.id.in_(ids)).all())))
+            res += '\nТовары в корзине: ' + \
+                   ', '.join(list(map(lambda x: f'{x.title} x {str(ids.count(x.id))}',
+                                      self.session.query(Product).filter(Product.id.in_(ids)).all())))
         ids = purchase.get_coupons()
         if ids:
-            res += '\nПрименены купоны: ' + ', '.join(list(map(lambda x: str(x.id),
-                                                               self.session.query(Coupone).filter(
+            res += '\nПрименены купоны: ' + \
+                   ', '.join(list(map(lambda x: str(x.id), self.session.query(Coupone).filter(
                                                                  Coupone.id.in_(ids)).all())))
         res += f'\nОбщая стоимость с учетом скидок: {self.count_cost(user_id)}'
         return res
@@ -175,7 +175,7 @@ class Worker:
             self.session.commit()
             return 0
         products = self.session.query(Product).filter(Product.id.in_(prod_ids))
-        purchase.cost = sum(map(lambda x: x.price, products))
+        purchase.cost = sum(map(lambda x: x.price * prod_ids.count(x.id), products))
         # если есть купоны, иначе цена будет посчитана неверно
         if purchase.coupons:
             # найти типы со скидкой по купонам и посчитать цену со скидкой. скидки не суммируются
@@ -195,9 +195,9 @@ class Worker:
                     price = round(prod.price * (100 - discount) / 100)
                     print(f'к товару {prod.title} применена скидка {discount}:\n'
                           f'{prod.price} ----------- {price}')
-                    summ += price
+                    summ += price * prod_ids.count(prod.id)
                 else:
-                    summ += prod.price
+                    summ += prod.price * prod_ids.count(prod.id)
             purchase.total = summ
         else:
             purchase.total = purchase.cost

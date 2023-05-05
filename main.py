@@ -5,6 +5,7 @@ import logging
 import markups_for_bot as mb  # все необходимые клавиатуры
 from copy import deepcopy
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.error import BadRequest
 from config import BOT_TOKEN, DB_FILE
 from db_worker import Worker
 
@@ -50,6 +51,8 @@ async def manager_callback(update, context):
         await types_manage(query)
     if query.data == 'add_product':  # добавить продукт в корзину
         await add_product(update, query)
+    if query.data == 'delete_product':  # удалить товар из корзины
+        await delete_product(update, query)
     if query.data == 'purchase_history':  # получить историю покупок
         await purchase_history(update)
     if query.data.isdigit():  # если отправлен номер купона
@@ -75,7 +78,7 @@ async def get_all_types(query):
 async def types_manage(query):
     """Отправить клавиатуру со списком продуктов определенной категории."""
     global to_add
-    markup_stack.append(mb.shop_markup)
+    markup_stack.append(mb.types_markup)
     to_add = deepcopy(mb.prod_markup[query.data])
     to_print = f'Продукты категории "{query.data}":'
     await query.edit_message_text(to_print, reply_markup=mb.prod_markup[query.data])
@@ -94,7 +97,26 @@ async def add_product(update, query):
     global product
     user = update.effective_message.chat.username
     worker.add_product(user, product)
-    await query.edit_message_text(f'{product}\nДобавлен в корзину!', reply_markup=mb.small_markup)
+    try:
+        await query.edit_message_text(f'{product}\nДобавлен в корзину!',
+                                      reply_markup=mb.small_markup)
+    except BadRequest:
+        await query.edit_message_text(f'{product}\nДобавлен в корзину !',
+                                      reply_markup=mb.small_markup)
+
+
+async def delete_product(update, query):
+    """Удалить продукт из корзины пользователя."""
+    global product
+    user = update.effective_message.chat.username
+    result = worker.delete_product(user, product)
+    message = f'{product}\nУдален из корзины' if result else 'Такого товара в корзине не было'
+    try:
+        await query.edit_message_text(message + '!',
+                                      reply_markup=mb.small_markup)
+    except BadRequest:
+        await query.edit_message_text(message + ' !',
+                                      reply_markup=mb.small_markup)
 
 
 async def shop(query):
